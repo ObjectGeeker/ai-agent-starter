@@ -1,0 +1,28 @@
+agent:
+  auto:
+    config:
+      config-table-map:
+        daily-agent:
+          appName: "单智能体应用"
+          agent:
+            agentId: "agent-single-001"
+            agentName: "客服助手"
+            agentDesc: "处理常见客户咨询"
+          module:
+            chatModel:
+              baseUrl: ${BASEURL}
+              apiKey: ${APIKEY}
+              completionsPath: "/v1/chat/completions"
+              embeddingsPath: "/v1/embeddings"
+              model: ${MODEL_NAME}
+            agents:
+              - name: "customer_service"
+                instruction: "你是一位专业的客服代表，请友好地解答用户问题。"
+                description: "客服智能体"
+                toolMcpList: [ ]   # 无工具
+            #                tool-skills-list:
+            #                  - type: classpath
+            #                    path: agent/skills
+            multiAgents: [ ]       # 无多智能体协作
+            runner:
+              agent-name: customer_service

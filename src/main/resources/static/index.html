@@ -1,0 +1,1481 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zephyr Agent</title>
+    <link rel="icon"
+          href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23111827'/%3E%3Cpath d='M9 21 L16 9 L23 21 M12 17 H20' stroke='white' stroke-width='2.2' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+    <!-- Markdown 渲染与安全过滤：优先 npmmirror 国内源，加载失败时自动切换 BootCDN，均失败则降级为纯文本展示 -->
+    <script src="https://registry.npmmirror.com/marked/12.0.2/files/marked.min.js" defer
+            onerror="this.onerror=null;this.src='https://cdn.bootcdn.net/ajax/libs/marked/12.0.2/marked.min.js';"></script>
+    <script src="https://registry.npmmirror.com/dompurify/3.2.4/files/dist/purify.min.js" defer
+            onerror="this.onerror=null;this.src='https://cdn.bootcdn.net/ajax/libs/dompurify/3.2.4/purify.min.js';"></script>
+    <link rel="stylesheet"
+          href="https://registry.npmmirror.com/@highlightjs/cdn-assets/11.9.0/files/styles/github.min.css"
+          onerror="this.onerror=null;this.href='https://cdn.bootcdn.net/ajax/libs/highlight.js/11.9.0/styles/github.min.css';">
+    <script src="https://registry.npmmirror.com/@highlightjs/cdn-assets/11.9.0/files/highlight.min.js" defer
+            onerror="this.onerror=null;this.src='https://cdn.bootcdn.net/ajax/libs/highlight.js/11.9.0/highlight.min.js';"></script>
+    <style>
+        :root {
+            --color-bg: #F8FAFC;
+            --color-surface: #FFFFFF;
+            --color-text: #1E293B;
+            --color-text-secondary: #64748B;
+            --color-text-muted: #94A3B8;
+            --color-primary: #111827;
+            --color-primary-hover: #000000;
+            --color-primary-soft: #F3F4F6;
+            --color-border: #E2E8F0;
+            --color-danger: #DC2626;
+            --color-danger-soft: #FEF2F2;
+            --header-height: 60px;
+            --composer-max-width: 760px;
+            --radius-md: 10px;
+            --radius-lg: 14px;
+            --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05);
+            --shadow-md: 0 4px 16px rgba(15, 23, 42, 0.08);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html, body {
+            height: 100%;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+            background: var(--color-bg);
+            color: var(--color-text);
+            font-size: 15px;
+            line-height: 1.6;
+            display: flex;
+            flex-direction: column;
+            height: 100dvh;
+            overflow: hidden;
+        }
+
+        button {
+            font-family: inherit;
+            cursor: pointer;
+            border: none;
+            background: none;
+            transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+        }
+
+        button:focus-visible,
+        textarea:focus-visible,
+        select:focus-visible {
+            outline: 2px solid var(--color-primary);
+            outline-offset: 2px;
+        }
+
+        /* ===== 顶部栏 ===== */
+        .app-header {
+            flex: none;
+            height: var(--header-height);
+            background: var(--color-surface);
+            border-bottom: 1px solid var(--color-border);
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 0 20px;
+            box-shadow: var(--shadow-sm);
+            position: relative;
+            z-index: 10;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex: none;
+        }
+
+        .brand-logo {
+            width: 30px;
+            height: 30px;
+            flex: none;
+        }
+
+        .brand-name {
+            font-size: 16px;
+            font-weight: 700;
+            letter-spacing: -0.01em;
+            white-space: nowrap;
+        }
+
+        .header-divider {
+            width: 1px;
+            height: 24px;
+            background: var(--color-border);
+            flex: none;
+        }
+
+        .agent-info {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            overflow: hidden;
+        }
+
+        .agent-info-name {
+            font-weight: 600;
+            font-size: 14px;
+            white-space: nowrap;
+            flex: none;
+            max-width: 40%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .agent-info-desc {
+            font-size: 13px;
+            color: var(--color-text-secondary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .agent-info.empty .agent-info-name {
+            color: var(--color-text-muted);
+            font-weight: 500;
+        }
+
+        .btn-new-session {
+            flex: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 14px;
+            border-radius: var(--radius-md);
+            background: var(--color-primary);
+            color: #FFFFFF;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .btn-new-session:hover {
+            background: var(--color-primary-hover);
+        }
+
+        .btn-new-session svg {
+            width: 15px;
+            height: 15px;
+        }
+
+        .mode-badge {
+            flex: none;
+            display: none;
+            align-items: center;
+            padding: 3px 10px;
+            border: 1px solid var(--color-border);
+            border-radius: 999px;
+            font-size: 12px;
+            color: var(--color-text-secondary);
+            background: var(--color-surface);
+        }
+
+        /* ===== 对话区 ===== */
+        .chat-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 28px 20px 16px;
+        }
+
+        .chat-inner {
+            max-width: var(--composer-max-width);
+            margin: 0 auto;
+        }
+
+        .welcome {
+            text-align: center;
+            padding: 72px 20px;
+            color: var(--color-text-secondary);
+        }
+
+        .welcome h2 {
+            font-size: 20px;
+            font-weight: 600;
+            color: var(--color-text);
+            margin-bottom: 8px;
+        }
+
+        .welcome p {
+            font-size: 14px;
+        }
+
+        .welcome .btn-start {
+            margin-top: 20px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 9px 18px;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--color-border);
+            background: var(--color-surface);
+            color: var(--color-primary);
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .welcome .btn-start:hover {
+            background: var(--color-primary-soft);
+            border-color: var(--color-primary);
+        }
+
+        .message {
+            margin-bottom: 26px;
+        }
+
+        .message:last-child {
+            margin-bottom: 8px;
+        }
+
+        .message-role {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--color-text-muted);
+            letter-spacing: 0.04em;
+            margin-bottom: 4px;
+        }
+
+        .message.user {
+            text-align: right;
+        }
+
+        .message.user .message-role {
+            color: var(--color-primary);
+        }
+
+        .message.user .message-body {
+            color: var(--color-text);
+        }
+
+        .message.assistant {
+            text-align: left;
+        }
+
+        .message.assistant .message-role {
+            color: var(--color-text-secondary);
+        }
+
+        .message-body {
+            display: inline-block;
+            max-width: 100%;
+            text-align: left;
+            word-break: break-word;
+        }
+
+        /* Markdown 内容排版（无气泡，纯文本块） */
+        .md-content > *:first-child {
+            margin-top: 0;
+        }
+
+        .md-content > *:last-child {
+            margin-bottom: 0;
+        }
+
+        .md-content p {
+            margin: 0.5em 0;
+        }
+
+        .md-content h1, .md-content h2, .md-content h3, .md-content h4 {
+            margin: 0.9em 0 0.4em;
+            line-height: 1.35;
+        }
+
+        .md-content h1 {
+            font-size: 1.25em;
+        }
+
+        .md-content h2 {
+            font-size: 1.15em;
+        }
+
+        .md-content h3 {
+            font-size: 1.05em;
+        }
+
+        .md-content ul, .md-content ol {
+            margin: 0.5em 0;
+            padding-left: 1.4em;
+        }
+
+        .md-content li {
+            margin: 0.2em 0;
+        }
+
+        .md-content blockquote {
+            margin: 0.6em 0;
+            padding: 0.2em 0.9em;
+            border-left: 3px solid var(--color-border);
+            color: var(--color-text-secondary);
+        }
+
+        .md-content a {
+            color: var(--color-primary);
+        }
+
+        .md-content table {
+            border-collapse: collapse;
+            margin: 0.6em 0;
+            font-size: 0.92em;
+            display: block;
+            overflow-x: auto;
+            max-width: 100%;
+        }
+
+        .md-content th, .md-content td {
+            border: 1px solid var(--color-border);
+            padding: 6px 12px;
+            text-align: left;
+        }
+
+        .md-content th {
+            background: var(--color-bg);
+            font-weight: 600;
+        }
+
+        .md-content code {
+            font-family: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+            font-size: 0.88em;
+            background: #F1F5F9;
+            border: 1px solid var(--color-border);
+            border-radius: 5px;
+            padding: 0.1em 0.35em;
+        }
+
+        .md-content pre {
+            margin: 0.6em 0;
+            background: #F8FAFC;
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-md);
+            overflow-x: auto;
+        }
+
+        .md-content pre code {
+            display: block;
+            padding: 12px 14px;
+            background: transparent;
+            border: none;
+            border-radius: 0;
+            font-size: 13px;
+            line-height: 1.55;
+        }
+
+        .md-content hr {
+            border: none;
+            border-top: 1px solid var(--color-border);
+            margin: 1em 0;
+        }
+
+        .md-content img {
+            max-width: 100%;
+            border-radius: var(--radius-md);
+        }
+
+        /* 思考中占位 */
+        .thinking {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            color: var(--color-text-muted);
+            font-size: 14px;
+        }
+
+        .thinking-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--color-text-muted);
+            animation: thinking-bounce 1.2s infinite ease-in-out;
+        }
+
+        .thinking-dot:nth-child(2) {
+            animation-delay: 0.15s;
+        }
+
+        .thinking-dot:nth-child(3) {
+            animation-delay: 0.3s;
+        }
+
+        @keyframes thinking-bounce {
+            0%, 60%, 100% {
+                transform: translateY(0);
+                opacity: 0.5;
+            }
+            30% {
+                transform: translateY(-4px);
+                opacity: 1;
+            }
+        }
+
+        /* 流式对话状态卡片（思考中 / 回复中 / 回复完成） */
+        .thinking-card {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 10px;
+            padding: 8px 14px;
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-md);
+            background: var(--color-surface);
+            font-size: 13px;
+            color: var(--color-text-secondary);
+        }
+
+        .thinking-spinner {
+            flex: none;
+            width: 14px;
+            height: 14px;
+            border: 2px solid var(--color-border);
+            border-top-color: var(--color-primary);
+            border-radius: 50%;
+            animation: thinking-spin 0.8s linear infinite;
+        }
+
+        .thinking-check {
+            display: none;
+            flex: none;
+            width: 14px;
+            height: 14px;
+        }
+
+        .thinking-card.done .thinking-spinner {
+            display: none;
+        }
+
+        .thinking-card.done .thinking-check {
+            display: inline-flex;
+        }
+
+        .thinking-card.done .thinking-card-text {
+            color: #059669;
+        }
+
+        @keyframes thinking-spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .message-error {
+            display: inline-block;
+            font-size: 14px;
+            color: var(--color-danger);
+            background: var(--color-danger-soft);
+            border: 1px solid #FECACA;
+            border-radius: var(--radius-md);
+            padding: 8px 14px;
+        }
+
+        /* ===== 流式回复容器 ===== */
+        .message-body.stream-body {
+            display: block;
+            width: 100%;
+        }
+
+        /* ===== 工具调用卡片 ===== */
+        .tool-card {
+            margin: 10px 0;
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-md);
+            background: var(--color-surface);
+            overflow: hidden;
+        }
+
+        .tool-card-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+            padding: 10px 14px;
+            font-size: 13px;
+            color: var(--color-text-secondary);
+            text-align: left;
+        }
+
+        .tool-card-header:hover {
+            background: var(--color-primary-soft);
+        }
+
+        .tool-card-icon {
+            width: 14px;
+            height: 14px;
+            flex: none;
+        }
+
+        .tool-card-name {
+            font-weight: 600;
+            color: var(--color-text);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .tool-card-status {
+            flex: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 12px;
+            color: var(--color-text-muted);
+        }
+
+        .tool-card-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--color-text-muted);
+            animation: tool-card-pulse 1.2s infinite ease-in-out;
+        }
+
+        .tool-card.done .tool-card-dot {
+            background: #10B981;
+            animation: none;
+        }
+
+        .tool-card.done .tool-card-status {
+            color: #059669;
+        }
+
+        @keyframes tool-card-pulse {
+            0%, 100% {
+                opacity: 0.35;
+            }
+            50% {
+                opacity: 1;
+            }
+        }
+
+        .tool-card-arrow {
+            flex: none;
+            width: 14px;
+            height: 14px;
+            margin-left: auto;
+            transition: transform 0.18s ease;
+        }
+
+        .tool-card.open .tool-card-arrow {
+            transform: rotate(180deg);
+        }
+
+        .tool-card-body {
+            display: none;
+            border-top: 1px solid var(--color-border);
+            background: #F8FAFC;
+            padding: 10px 14px;
+            max-height: 260px;
+            overflow: auto;
+        }
+
+        .tool-card.open .tool-card-body {
+            display: block;
+        }
+
+        .tool-card-body pre {
+            font-family: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+            font-size: 12px;
+            line-height: 1.55;
+            white-space: pre-wrap;
+            word-break: break-all;
+            color: var(--color-text-secondary);
+        }
+
+        /* ===== 输入区 ===== */
+        .composer {
+            flex: none;
+            background: var(--color-bg);
+            padding: 12px 20px 18px;
+        }
+
+        .composer-inner {
+            max-width: var(--composer-max-width);
+            margin: 0 auto;
+            display: flex;
+            align-items: flex-end;
+            gap: 10px;
+            background: var(--color-surface);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-lg);
+            padding: 10px 12px;
+            box-shadow: var(--shadow-sm);
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .composer-inner:focus-within {
+            border-color: var(--color-primary);
+            box-shadow: 0 0 0 3px rgba(17, 24, 39, 0.12);
+        }
+
+        .composer textarea {
+            flex: 1;
+            border: none;
+            resize: none;
+            font-family: inherit;
+            font-size: 15px;
+            line-height: 1.5;
+            color: var(--color-text);
+            background: transparent;
+            min-height: 66px;
+            max-height: 160px;
+            outline: none;
+        }
+
+        .composer textarea::placeholder {
+            color: var(--color-text-muted);
+        }
+
+        .btn-send {
+            flex: none;
+            width: 36px;
+            height: 36px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 10px;
+            background: var(--color-primary);
+            color: #FFFFFF;
+        }
+
+        .btn-send:hover:not(:disabled) {
+            background: var(--color-primary-hover);
+        }
+
+        .btn-send:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+
+        .btn-send svg {
+            width: 17px;
+            height: 17px;
+        }
+
+        .composer-hint {
+            max-width: var(--composer-max-width);
+            margin: 8px auto 0;
+            text-align: center;
+            font-size: 12px;
+            color: var(--color-text-muted);
+        }
+
+        /* ===== 新建会话模态框 ===== */
+        .modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            z-index: 100;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.18s ease, visibility 0.18s ease;
+        }
+
+        .modal-backdrop.open {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal {
+            width: 100%;
+            max-width: 440px;
+            background: var(--color-surface);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-md);
+            padding: 24px;
+            transform: translateY(8px);
+            transition: transform 0.18s ease;
+        }
+
+        .modal-backdrop.open .modal {
+            transform: translateY(0);
+        }
+
+        .modal h3 {
+            font-size: 17px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .modal .modal-desc {
+            font-size: 13px;
+            color: var(--color-text-secondary);
+            margin-bottom: 18px;
+        }
+
+        .agent-option-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 300px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+        }
+
+        .agent-option {
+            display: block;
+            width: 100%;
+            text-align: left;
+            padding: 12px 14px;
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-md);
+            background: var(--color-surface);
+        }
+
+        .agent-option:hover {
+            border-color: var(--color-primary);
+            background: var(--color-primary-soft);
+        }
+
+        .agent-option.selected {
+            border-color: var(--color-primary);
+            background: var(--color-primary-soft);
+            box-shadow: 0 0 0 1px var(--color-primary);
+        }
+
+        .agent-option-name {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 2px;
+        }
+
+        .agent-option-desc {
+            font-size: 13px;
+            color: var(--color-text-secondary);
+            overflow: hidden;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+        }
+
+        .modal-empty, .modal-loading {
+            padding: 24px 0;
+            text-align: center;
+            font-size: 14px;
+            color: var(--color-text-muted);
+        }
+
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .btn-modal {
+            padding: 8px 18px;
+            border-radius: var(--radius-md);
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .btn-modal.primary {
+            background: var(--color-primary);
+            color: #FFFFFF;
+        }
+
+        .btn-modal.primary:hover:not(:disabled) {
+            background: var(--color-primary-hover);
+        }
+
+        .btn-modal.primary:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+
+        .btn-modal.ghost {
+            border: 1px solid var(--color-border);
+            background: var(--color-surface);
+            color: var(--color-text);
+        }
+
+        .btn-modal.ghost:hover {
+            background: var(--color-bg);
+        }
+
+        /* ===== 响应式 ===== */
+        @media (max-width: 640px) {
+            .app-header {
+                padding: 0 14px;
+                gap: 10px;
+            }
+
+            .header-divider, .agent-info-desc {
+                display: none;
+            }
+
+            .brand-name {
+                font-size: 15px;
+            }
+
+            .btn-new-session span {
+                display: none;
+            }
+
+            .btn-new-session {
+                padding: 8px 10px;
+            }
+
+            .chat-area {
+                padding: 20px 14px 12px;
+            }
+
+            .composer {
+                padding: 10px 14px 14px;
+            }
+
+            .composer-hint {
+                display: none;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<!-- ===== 顶部栏 ===== -->
+<header class="app-header">
+    <div class="brand">
+        <svg class="brand-logo" viewBox="0 0 32 32" aria-hidden="true">
+            <rect width="32" height="32" rx="8" fill="#111827"/>
+            <path d="M9 21 L16 9 L23 21 M12 17 H20" stroke="#fff" stroke-width="2.2" fill="none" stroke-linecap="round"
+                  stroke-linejoin="round"/>
+        </svg>
+        <span class="brand-name">Zephyr Agent</span>
+    </div>
+    <div class="header-divider"></div>
+    <div class="agent-info empty" id="agentInfo" title="当前会话所属 Agent">
+        <span class="agent-info-name" id="agentInfoName">未选择 Agent</span>
+        <span class="agent-info-desc" id="agentInfoDesc"></span>
+    </div>
+    <span class="mode-badge" id="modeBadge" title="当前为流式对话模式">流式模式</span>
+    <button class="btn-new-session" id="btnNewSession" title="新建会话">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+             aria-hidden="true">
+            <path d="M12 5v14M5 12h14"/>
+        </svg>
+        <span>新建会话</span>
+    </button>
+</header>
+
+<!-- ===== 对话区 ===== -->
+<main class="chat-area" id="chatArea">
+    <div class="chat-inner" id="chatInner">
+        <div class="welcome" id="welcomePanel">
+            <h2>欢迎使用 Zephyr Agent</h2>
+            <p>选择一个 Agent 开始对话，回复内容将以 Markdown 格式渲染。</p>
+            <button class="btn-start" id="btnStart">开始对话</button>
+        </div>
+    </div>
+</main>
+
+<!-- ===== 输入区 ===== -->
+<footer class="composer">
+    <div class="composer-inner">
+        <textarea id="inputBox" rows="1" placeholder="输入消息，Enter 发送，Shift + Enter 换行" aria-label="消息输入框"
+                  disabled></textarea>
+        <button class="btn-send" id="btnSend" title="发送" aria-label="发送消息" disabled>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                 stroke-linejoin="round" aria-hidden="true">
+                <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
+            </svg>
+        </button>
+    </div>
+    <p class="composer-hint">会话仅保存在内存中，刷新页面后不会保留历史记录</p>
+</footer>
+
+<!-- ===== 新建会话模态框 ===== -->
+<div class="modal-backdrop" id="modalBackdrop" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal">
+        <h3 id="modalTitle">新建会话</h3>
+        <p class="modal-desc">请选择一个 Agent，开启新的对话会话。</p>
+        <div class="agent-option-list" id="agentOptionList">
+            <div class="modal-loading">加载 Agent 列表中…</div>
+        </div>
+        <div class="modal-actions">
+            <button class="btn-modal ghost" id="btnModalCancel">取消</button>
+            <button class="btn-modal primary" id="btnModalConfirm" disabled>确认</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    'use strict';
+
+    /* =====================================================================
+     * 后端 API 地址（需指定端口访问）
+     * 页面由后端自身托管时可改为相对路径 'api/'；
+     * 以 file:// 或其他端口打开页面时，保持下方绝对地址（后端已开启 CORS）。
+     * ===================================================================*/
+    const API_BASE = 'http://localhost:8123/api/';
+
+    /* =====================================================================
+     * 全局状态
+     * ===================================================================*/
+    const state = {
+        userId: generateUserId(),      // 每次页面加载随机生成，不做持久化
+        agentList: [],                 // query_agent_list 缓存
+        currentAgent: null,            // 当前会话所属 Agent
+        sessionId: null,               // 当前会话 ID
+        sending: false,                // 是否正在等待回复
+        selectedAgentId: null,         // 模态框中选中的 Agent
+    };
+
+    // 对话模式：URL 参数 streamMode=true 时启用流式对话（见 sendByStream），默认普通对话
+    const STREAM_MODE = new URLSearchParams(location.search).get('streamMode') === 'true';
+
+    function generateUserId() {
+        return 'user-' + Math.random().toString(36).slice(2, 10) + '-' + Date.now().toString(36);
+    }
+
+    /* =====================================================================
+     * ChatAPI —— 所有后端接口调用集中于此，便于后续扩展流式接口
+     * 接口统一响应格式：{ code, message, data }，code === 0 表示成功
+     * ===================================================================*/
+    const ChatAPI = {
+        async request(url, options) {
+            const res = await fetch(API_BASE + url, options);
+            if (!res.ok) {
+                throw new Error('HTTP ' + res.status);
+            }
+            const body = await res.json();
+            if (body.code !== 0) {
+                throw new Error(body.message || '请求失败（code=' + body.code + '）');
+            }
+            return body.data;
+        },
+
+        /** 查询可用 Agent 列表 */
+        queryAgentList() {
+            return this.request('agent/query_agent_list');
+        },
+
+        /** 创建会话，返回 sessionId */
+        createSession(userId, agentId) {
+            const params = new URLSearchParams({userId, agentId});
+            return this.request('agent/create_session?' + params.toString());
+        },
+
+        /** 普通对话（一次性返回完整回复） */
+        chat({userId, agentId, sessionId, userMessage}) {
+            return this.request('agent/chat', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({userId, agentId, sessionId, userMessage}),
+            });
+        },
+
+        /** 流式对话（SSE，返回 Response，由 sendByStream 消费 body 流） */
+        chatStream({userId, agentId, sessionId, userMessage}) {
+            return fetch(API_BASE + 'agent/stream_chat', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', Accept: 'text/event-stream'},
+                body: JSON.stringify({userId, agentId, sessionId, userMessage}),
+            });
+        },
+    };
+
+    /* =====================================================================
+     * Markdown 渲染（marked + DOMPurify + highlight.js）
+     * CDN 加载失败时降级为纯文本展示
+     * ===================================================================*/
+    function renderMarkdown(container, text) {
+        if (window.marked && window.DOMPurify) {
+            const rawHtml = marked.parse(text, {breaks: true, gfm: true});
+            container.innerHTML = DOMPurify.sanitize(rawHtml);
+            if (window.hljs) {
+                container.querySelectorAll('pre code').forEach((block) => {
+                    try {
+                        hljs.highlightElement(block);
+                    } catch (e) { /* 忽略高亮失败 */
+                    }
+                });
+            }
+        } else {
+            container.textContent = text;
+        }
+    }
+
+    /* =====================================================================
+     * DOM 工具
+     * ===================================================================*/
+    const $ = (id) => document.getElementById(id);
+    const chatArea = $('chatArea');
+    const chatInner = $('chatInner');
+    const inputBox = $('inputBox');
+    const btnSend = $('btnSend');
+
+    function scrollToBottom() {
+        chatArea.scrollTop = chatArea.scrollHeight;
+    }
+
+    function escapeText(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    /** 追加一条消息（role: 'user' | 'assistant'），返回内容容器 */
+    function appendMessage(role, text) {
+        const wrap = document.createElement('div');
+        wrap.className = 'message ' + role;
+
+        const roleLabel = document.createElement('div');
+        roleLabel.className = 'message-role';
+        roleLabel.textContent = role === 'user' ? '我' : (state.currentAgent ? state.currentAgent.agentName : 'Agent');
+
+        const body = document.createElement('div');
+        body.className = 'message-body md-content';
+        renderMarkdown(body, text);
+
+        wrap.appendChild(roleLabel);
+        wrap.appendChild(body);
+        chatInner.appendChild(wrap);
+        scrollToBottom();
+        return body;
+    }
+
+    /** 追加"思考中"占位，返回占位元素 */
+    function appendThinking() {
+        const wrap = document.createElement('div');
+        wrap.className = 'message assistant';
+        wrap.innerHTML =
+            '<div class="message-role">' + escapeText(state.currentAgent ? state.currentAgent.agentName : 'Agent') + '</div>' +
+            '<div class="message-body"><span class="thinking">' +
+            '<span class="thinking-dot"></span><span class="thinking-dot"></span><span class="thinking-dot"></span>' +
+            '</span></div>';
+        chatInner.appendChild(wrap);
+        scrollToBottom();
+        return wrap;
+    }
+
+    /** 追加错误提示 */
+    function appendError(message) {
+        const wrap = document.createElement('div');
+        wrap.className = 'message assistant';
+        wrap.innerHTML =
+            '<div class="message-role">系统</div>' +
+            '<div class="message-body"><span class="message-error">' + escapeText(message) + '</span></div>';
+        chatInner.appendChild(wrap);
+        scrollToBottom();
+    }
+
+    function setSending(sending) {
+        state.sending = sending;
+        updateComposerState();
+    }
+
+    function updateComposerState() {
+        const locked = state.sending || !state.sessionId;
+        inputBox.disabled = locked;
+        btnSend.disabled = locked || !inputBox.value.trim();
+    }
+
+    /* =====================================================================
+     * 发送消息
+     * ===================================================================*/
+    async function sendMessage() {
+        const text = inputBox.value.trim();
+        if (!text || state.sending || !state.sessionId) return;
+
+        inputBox.value = '';
+        autoResizeInput();
+        appendMessage('user', text);
+        setSending(true);
+
+        const payload = {
+            userId: state.userId,
+            agentId: state.currentAgent.agentId,
+            sessionId: state.sessionId,
+            userMessage: text,
+        };
+
+        try {
+            if (STREAM_MODE) {
+                await sendByStream(payload);
+            } else {
+                const thinking = appendThinking();
+                try {
+                    const reply = await ChatAPI.chat(payload);
+                    thinking.remove();
+                    appendMessage('assistant', reply || '（空回复）');
+                } catch (err) {
+                    thinking.remove();
+                    throw err;
+                }
+            }
+        } catch (err) {
+            appendError('请求失败：' + err.message);
+        } finally {
+            setSending(false);
+            inputBox.focus();
+            updateComposerState();
+        }
+    }
+
+    /* =====================================================================
+     * 流式对话（SSE）
+     * 后端 stream_chat 接口每个 data 帧为一条 AgentResponseDTO：
+     *   { role: 'ai', content }                                AI 文本分片
+     *   { role: 'tool', toolCalls: [{ id, toolName }] }        工具发起调用
+     *   { role: 'tool', toolCalls: [{ id, toolName, toolResponse }] }  工具返回（与调用通过 id 关联）
+     * ===================================================================*/
+    async function sendByStream(payload) {
+        // 助手回复容器：文本块与工具卡片按流中顺序依次追加入
+        const wrap = document.createElement('div');
+        wrap.className = 'message assistant';
+        const roleLabel = document.createElement('div');
+        roleLabel.className = 'message-role';
+        roleLabel.textContent = state.currentAgent ? state.currentAgent.agentName : 'Agent';
+        const bodyContainer = document.createElement('div');
+        bodyContainer.className = 'message-body stream-body';
+        wrap.appendChild(roleLabel);
+        wrap.appendChild(bodyContainer);
+        chatInner.appendChild(wrap);
+        scrollToBottom();
+
+        // 顶部状态卡片：思考中 -> 回复中 -> 回复完成；异常时移除，由 appendError 提示
+        const statusCard = document.createElement('div');
+        statusCard.className = 'thinking-card';
+        statusCard.innerHTML =
+            '<span class="thinking-spinner"></span>' +
+            '<svg class="thinking-check" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>' +
+            '<span class="thinking-card-text">AI 正在思考中</span>';
+        bodyContainer.appendChild(statusCard);
+
+        // 首个有效内容帧到达时切换为"回复中"（仅一次）
+        const switchToResponding = () => {
+            if (statusCard.classList.contains('started')) return;
+            statusCard.classList.add('started');
+            statusCard.querySelector('.thinking-card-text').textContent = 'AI 正在回复中';
+        };
+
+        const res = await ChatAPI.chatStream(payload).catch((err) => {
+            statusCard.remove();
+            throw err;
+        });
+        if (!res.ok || !res.body) {
+            statusCard.remove();
+            throw new Error('HTTP ' + res.status);
+        }
+
+        // 本轮状态：当前文本块、累积文本、工具卡片映射（toolId -> 卡片）
+        let textBlock = null;
+        let fullText = '';
+        let hasContent = false;
+        const toolCards = new Map();
+
+        // 确保存在当前文本块（前一个块是工具卡片时新建，继续追加则复用）
+        const ensureTextBlock = () => {
+            if (!textBlock) {
+                textBlock = document.createElement('div');
+                textBlock.className = 'md-content';
+                bodyContainer.appendChild(textBlock);
+            }
+            return textBlock;
+        };
+
+        // 处理一条 AgentResponseDTO
+        const handleStreamEvent = (dto) => {
+            if (dto.role === 'ai' && dto.content) {
+                hasContent = true;
+                switchToResponding();
+                fullText += dto.content;
+                // 累积全文整体重渲染，保证 Markdown 结构完整
+                appendAssistantChunk(ensureTextBlock(), fullText);
+            } else if (dto.role === 'tool' && Array.isArray(dto.toolCalls)) {
+                switchToResponding();
+                dto.toolCalls.forEach((toolCall) => {
+                    hasContent = true;
+                    if (toolCall.toolResponse != null) {
+                        finishToolCard(toolCards, bodyContainer, toolCall);
+                    } else {
+                        startToolCard(toolCards, bodyContainer, toolCall);
+                    }
+                });
+                // 插入工具卡片后，后续文本新开一个块
+                textBlock = null;
+                fullText = '';
+            }
+        };
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let buffer = '';
+        try {
+            while (true) {
+                const {done, value} = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, {stream: true});
+                // 按空行切分 SSE 帧，末尾不完整帧留在 buffer 待下次拼接
+                let sep;
+                while ((sep = buffer.indexOf('\n\n')) !== -1) {
+                    const frame = buffer.slice(0, sep);
+                    buffer = buffer.slice(sep + 2);
+                    frame.split('\n').forEach((line) => {
+                        if (!line.startsWith('data:')) return;
+                        const data = line.slice(5).trim();
+                        if (!data) return;
+                        try {
+                            handleStreamEvent(JSON.parse(data));
+                        } catch (e) { /* 忽略解析失败的帧 */
+                        }
+                    });
+                }
+            }
+            if (!hasContent) {
+                appendAssistantChunk(ensureTextBlock(), '（空回复）');
+            }
+            // 流正常结束：卡片切换为完成态并保留
+            statusCard.classList.add('done');
+            statusCard.querySelector('.thinking-card-text').textContent = 'AI 回复完成';
+        } catch (err) {
+            statusCard.remove();
+            throw err;
+        }
+    }
+
+    /* =====================================================================
+     * 工具调用卡片：默认折叠，点击头部展开查看执行结果；
+     * 调用与返回事件通过工具 id 合并到同一张卡片，
+     * id 缺失时按工具名匹配最近一张未完成卡片兜底。
+     * ===================================================================*/
+    function startToolCard(toolCards, container, toolCall) {
+        const card = createToolCard(toolCall.toolName);
+        container.appendChild(card);
+        if (toolCall.id) {
+            toolCards.set(toolCall.id, card);
+        }
+        scrollToBottom();
+    }
+
+    function finishToolCard(toolCards, container, toolCall) {
+        let card = toolCall.id ? toolCards.get(toolCall.id) : null;
+        if (!card) {
+            card = Array.from(container.querySelectorAll('.tool-card:not(.done)'))
+                .reverse()
+                .find((el) => el.dataset.toolName === (toolCall.toolName || ''));
+        }
+        if (!card) {
+            // 未收到调用事件，直接补建卡片
+            card = createToolCard(toolCall.toolName);
+            container.appendChild(card);
+            if (toolCall.id) toolCards.set(toolCall.id, card);
+        }
+        card.classList.add('done');
+        card.querySelector('.tool-card-status-text').textContent = '已完成';
+        card.querySelector('.tool-card-body pre').textContent = prettyJson(toolCall.toolResponse);
+        scrollToBottom();
+    }
+
+    function createToolCard(toolName) {
+        const card = document.createElement('div');
+        card.className = 'tool-card';
+        card.dataset.toolName = toolName || '';
+
+        const header = document.createElement('button');
+        header.type = 'button';
+        header.className = 'tool-card-header';
+        header.setAttribute('aria-expanded', 'false');
+        header.innerHTML =
+            '<svg class="tool-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+            '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>' +
+            '<span class="tool-card-name">' + escapeText(toolName || '工具调用') + '</span>' +
+            '<span class="tool-card-status"><span class="tool-card-dot"></span><span class="tool-card-status-text">执行中</span></span>' +
+            '<svg class="tool-card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>';
+        header.addEventListener('click', () => {
+            const open = card.classList.toggle('open');
+            header.setAttribute('aria-expanded', String(open));
+        });
+
+        const body = document.createElement('div');
+        body.className = 'tool-card-body';
+        body.innerHTML = '<pre></pre>';
+
+        card.appendChild(header);
+        card.appendChild(body);
+        return card;
+    }
+
+    /** 工具返回内容：JSON 则缩进美化，否则原样展示 */
+    function prettyJson(text) {
+        if (!text) return '';
+        try {
+            return JSON.stringify(JSON.parse(text), null, 2);
+        } catch (e) {
+            return text;
+        }
+    }
+
+    /** 流式渲染：将累积的全文重新渲染到目标容器 */
+    function appendAssistantChunk(container, fullText) {
+        renderMarkdown(container, fullText);
+        scrollToBottom();
+    }
+
+    /* =====================================================================
+     * 新建会话
+     * ===================================================================*/
+    const modalBackdrop = $('modalBackdrop');
+    const agentOptionList = $('agentOptionList');
+    const btnModalConfirm = $('btnModalConfirm');
+
+    function openNewSessionModal() {
+        state.selectedAgentId = null;
+        btnModalConfirm.disabled = true;
+        renderAgentOptions();
+        modalBackdrop.classList.add('open');
+    }
+
+    function closeNewSessionModal() {
+        modalBackdrop.classList.remove('open');
+    }
+
+    async function renderAgentOptions() {
+        if (state.agentList.length === 0) {
+            agentOptionList.innerHTML = '<div class="modal-loading">加载 Agent 列表中…</div>';
+            try {
+                state.agentList = await ChatAPI.queryAgentList();
+            } catch (err) {
+                agentOptionList.innerHTML = '<div class="modal-empty">加载失败：' + escapeText(err.message) + '</div>';
+                return;
+            }
+        }
+        if (state.agentList.length === 0) {
+            agentOptionList.innerHTML = '<div class="modal-empty">暂无可用 Agent</div>';
+            return;
+        }
+        agentOptionList.innerHTML = '';
+        state.agentList.forEach((agent) => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'agent-option' + (agent.agentId === state.selectedAgentId ? ' selected' : '');
+            btn.innerHTML =
+                '<div class="agent-option-name">' + escapeText(agent.agentName || agent.agentId) + '</div>' +
+                '<div class="agent-option-desc">' + escapeText(agent.agentDesc || '暂无描述') + '</div>';
+            btn.addEventListener('click', () => {
+                state.selectedAgentId = agent.agentId;
+                agentOptionList.querySelectorAll('.agent-option').forEach((el) => el.classList.remove('selected'));
+                btn.classList.add('selected');
+                btnModalConfirm.disabled = false;
+            });
+            agentOptionList.appendChild(btn);
+        });
+    }
+
+    async function confirmNewSession() {
+        const agent = state.agentList.find((a) => a.agentId === state.selectedAgentId);
+        if (!agent) return;
+        btnModalConfirm.disabled = true;
+        btnModalConfirm.textContent = '创建中…';
+        try {
+            const sessionId = await ChatAPI.createSession(state.userId, agent.agentId);
+            state.currentAgent = agent;
+            state.sessionId = sessionId;
+            resetChatArea();
+            updateAgentInfoBar();
+            closeNewSessionModal();
+            inputBox.focus();
+        } catch (err) {
+            agentOptionList.insertAdjacentHTML(
+                'beforeend',
+                '<div class="modal-empty">创建会话失败：' + escapeText(err.message) + '</div>'
+            );
+        } finally {
+            btnModalConfirm.textContent = '确认';
+            updateComposerState();
+        }
+    }
+
+    function resetChatArea() {
+        chatInner.innerHTML = '';
+        const tip = document.createElement('div');
+        tip.className = 'welcome';
+        tip.style.padding = '36px 20px';
+        tip.innerHTML = '<p>会话已开始，向 <strong>' + escapeText(state.currentAgent.agentName) + '</strong> 提问吧。</p>';
+        chatInner.appendChild(tip);
+    }
+
+    function updateAgentInfoBar() {
+        const agentInfo = $('agentInfo');
+        if (state.currentAgent) {
+            agentInfo.classList.remove('empty');
+            $('agentInfoName').textContent = state.currentAgent.agentName || state.currentAgent.agentId;
+            $('agentInfoDesc').textContent = state.currentAgent.agentDesc || '';
+        } else {
+            agentInfo.classList.add('empty');
+            $('agentInfoName').textContent = '未选择 Agent';
+            $('agentInfoDesc').textContent = '';
+        }
+    }
+
+    /* =====================================================================
+     * 输入框自适应高度
+     * ===================================================================*/
+    function autoResizeInput() {
+        inputBox.style.height = 'auto';
+        inputBox.style.height = Math.min(inputBox.scrollHeight, 160) + 'px';
+    }
+
+    /* =====================================================================
+     * 事件绑定与初始化
+     * ===================================================================*/
+    $('btnNewSession').addEventListener('click', openNewSessionModal);
+    $('btnStart').addEventListener('click', openNewSessionModal);
+    $('btnModalCancel').addEventListener('click', closeNewSessionModal);
+    btnModalConfirm.addEventListener('click', confirmNewSession);
+    modalBackdrop.addEventListener('click', (e) => {
+        if (e.target === modalBackdrop) closeNewSessionModal();
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && modalBackdrop.classList.contains('open')) closeNewSessionModal();
+    });
+
+    btnSend.addEventListener('click', sendMessage);
+    inputBox.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+    inputBox.addEventListener('input', () => {
+        autoResizeInput();
+        updateComposerState();
+    });
+
+    // 页面加载时预取 Agent 列表（供模态框直接使用）
+    ChatAPI.queryAgentList()
+        .then((list) => {
+            state.agentList = list;
+        })
+        .catch(() => { /* 失败不阻塞，打开模态框时会重试 */
+        });
+
+    // 流式模式下展示顶部模式徽标
+    if (STREAM_MODE) {
+        $('modeBadge').style.display = 'inline-flex';
+    }
+
+    if (window.marked) {
+        marked.setOptions({breaks: true, gfm: true});
+    }
+</script>
+</body>
+</html>

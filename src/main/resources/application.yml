@@ -1,0 +1,11 @@
+spring:
+  application:
+    name: ai-agent-starter
+  config:
+    import:
+      - optional:file:.env[.properties]
+      - agent/agent-dev.yml
+server:
+  servlet:
+    context-path: /api
+  port: 8123

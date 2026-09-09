@@ -1,0 +1,85 @@
+agent:
+  auto:
+    config:
+      enable: false
+      config-table-map:
+        # ========== 单 Agent 示例 ==========
+        single-agent:
+          appName: "单智能体应用"
+          agent:
+            agentId: "agent-single-001"
+            agentName: "客服助手"
+            agentDesc: "处理常见客户咨询"
+          module:
+            chatModel:
+              baseUrl: "https://api.openai.com"
+              apiKey: "sk-xxxxx"
+              completionsPath: "/v1/chat/completions"
+              embeddingsPath: "/v1/embeddings"
+              model: "gpt-4"
+            agents:
+              - name: "customer_service"
+                instruction: "你是一位专业的客服代表，请友好地解答用户问题。"
+                description: "客服智能体"
+                outputKey: "response"
+                outputSchema: "{\"type\":\"object\",\"properties\":{\"reply\":{\"type\":\"string\"}}}"
+                toolMcpList: [ ]   # 无工具
+            multiAgents: [ ]       # 无多智能体协作
+
+        # ========== 多 Agent 示例（顺序协作） ==========
+        multi-agent:
+          appName: "多智能体协作应用"
+          agent:
+            agentId: "agent-multi-001"
+            agentName: "内容生成主管"
+            agentDesc: "协调多个智能体完成文章生成"
+          module:
+            chatModel:
+              baseUrl: "https://api.openai.com"
+              apiKey: "sk-yyyyy"
+              completionsPath: "/v1/chat/completions"
+              embeddingsPath: "/v1/embeddings"
+              model: "gpt-4-turbo"
+            agents:
+              - name: "planner"
+                instruction: "你是一位内容规划师，负责生成文章大纲。"
+                description: "规划智能体"
+                outputKey: "outline"
+                outputSchema: "{\"type\":\"object\",\"properties\":{\"title\":{\"type\":\"string\"},\"sections\":{\"type\":\"array\"}}}"
+                toolMcpList:
+                  - sse:
+                      name: "search-sse"
+                      baseUri: "http://search-service"
+                      sseEndpoint: "/events"
+                      requestTimeout: 5000
+                    stdio: null
+              - name: "writer"
+                instruction: "你是一位专业作家，根据大纲撰写详细内容。"
+                description: "写作智能体"
+                outputKey: "draft"
+                outputSchema: "{\"type\":\"object\",\"properties\":{\"content\":{\"type\":\"string\"}}}"
+                toolMcpList:
+                  - sse: null
+                    stdio:
+                      name: "file-stdio"
+                      requestTimeout: 10000
+                      serverParameters:
+                        command: "python"
+                        args: [ "/path/to/writer_tool.py" ]
+                        env:
+                          PYTHONUNBUFFERED: "1"
+              - name: "reviewer"
+                instruction: "你是一位资深编辑，负责审阅和润色文章。"
+                description: "审阅智能体"
+                outputKey: "final"
+                outputSchema: "{\"type\":\"object\",\"properties\":{\"finalContent\":{\"type\":\"string\"}}}"
+                toolMcpList: [ ]
+            multiAgents:
+              - type: "sequential"   # 顺序执行
+                name: "文章生成流水线"
+                subAgents:
+                  - "planner"
+                  - "writer"
+                  - "reviewer"
+                description: "依次完成规划、写作、审阅"
+                maxIterations: 3
