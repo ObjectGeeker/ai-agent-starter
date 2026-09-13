@@ -49,7 +49,7 @@ app:
     tcp-no-delay: true
     client-name: ai-agent-starter
 
-# MyBatis 配置【如需使用记得打开】
-#mybatis-plus:
-#  mapper-locations: classpath:/mybatis/mapper/*.xml
+# MyBatis 配置
+mybatis-plus:
+  mapper-locations: classpath:/mybatis/mapper/*.xml
 #  config-location:  classpath:/mybatis/config/mybatis-config.xml
