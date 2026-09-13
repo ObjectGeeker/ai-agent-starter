@@ -1,4 +1,19 @@
 spring:
+  datasource:
+    url: jdbc:mysql://127.0.0.1:3306/ai_agent_starter?useUnicode=true&characterEncoding=utf8&autoReconnect=true&zeroDateTimeBehavior=convertToNull&serverTimezone=UTC&useSSL=true
+    username: root
+    password: root
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      pool-name: Retail_HikariCP
+      minimum-idle: 15 #最小空闲连接数量
+      idle-timeout: 180000 #空闲连接存活最大时间，默认600000（10分钟）
+      maximum-pool-size: 25 #连接池最大连接数，默认是10
+      auto-commit: true  #此属性控制从池返回的连接的默认自动提交行为,默认值：true
+      max-lifetime: 1800000 #此属性控制池中连接的最长生命周期，值0表示无限生命周期，默认1800000即30分钟
+      connection-timeout: 30000 #数据库连接超时时间,默认30秒，即30000
+      connection-test-query: SELECT 1
+    type: com.zaxxer.hikari.HikariDataSource
   application:
     name: ai-agent-starter
   config:
@@ -9,3 +24,32 @@ server:
   servlet:
     context-path: /api
   port: 8123
+
+# Redis 配置
+app:
+  redis:
+    enabled: false
+    host: 127.0.0.1
+    port: 6379
+    username:
+    password:
+    database0: 0
+    database1: 1
+    max-retry: 3
+    retry-interval: 1500ms
+    timeout: 3s
+    connect-timeout: 10s
+    idle-connection-timeout: 10s
+    connection-pool-size: 64
+    connection-minimum-idle-size: 24
+    subscription-connection-pool-size: 50
+    subscription-connection-minimum-idle-size: 1
+    ping-connection-interval: 30s
+    keep-alive: true
+    tcp-no-delay: true
+    client-name: ai-agent-starter
+
+# MyBatis 配置【如需使用记得打开】
+#mybatis-plus:
+#  mapper-locations: classpath:/mybatis/mapper/*.xml
+#  config-location:  classpath:/mybatis/config/mybatis-config.xml
