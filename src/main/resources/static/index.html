@@ -182,6 +182,85 @@
             background: var(--color-surface);
         }
 
+        /* ===== 登录面板 ===== */
+        .login-backdrop {
+            position: fixed;
+            inset: 0;
+            z-index: 30;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background: rgba(248, 250, 252, 0.96);
+        }
+
+        .login-backdrop.hidden {
+            display: none;
+        }
+
+        .login-card {
+            width: min(100%, 380px);
+            padding: 28px;
+            background: var(--color-surface);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-md);
+        }
+
+        .login-card h1 {
+            margin-bottom: 6px;
+            font-size: 22px;
+        }
+
+        .login-card p {
+            margin-bottom: 22px;
+            color: var(--color-text-secondary);
+            font-size: 14px;
+        }
+
+        .login-field {
+            display: block;
+            margin-bottom: 14px;
+            color: var(--color-text-secondary);
+            font-size: 13px;
+        }
+
+        .login-field input {
+            width: 100%;
+            margin-top: 6px;
+            padding: 10px 12px;
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-md);
+            color: var(--color-text);
+            font: inherit;
+        }
+
+        .login-field input:focus {
+            outline: 2px solid rgba(17, 24, 39, 0.12);
+            border-color: var(--color-primary);
+        }
+
+        .btn-login {
+            width: 100%;
+            padding: 10px 14px;
+            border-radius: var(--radius-md);
+            background: var(--color-primary);
+            color: #FFFFFF;
+            font-weight: 600;
+        }
+
+        .btn-login:disabled {
+            cursor: wait;
+            opacity: 0.55;
+        }
+
+        .login-error {
+            min-height: 24px;
+            margin: 4px 0 10px;
+            color: var(--color-danger);
+            font-size: 13px;
+        }
+
         /* ===== 对话区 ===== */
         .chat-area {
             flex: 1;
@@ -850,6 +929,22 @@
 </head>
 <body>
 
+<!-- ===== 登录面板 ===== -->
+<div class="login-backdrop" id="loginBackdrop" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
+    <form class="login-card" id="loginForm">
+        <h1 id="loginTitle">登录 Zephyr Agent</h1>
+        <p>登录后即可使用 Agent 对话服务。</p>
+        <label class="login-field">用户名
+            <input id="loginUsername" name="username" autocomplete="username" required>
+        </label>
+        <label class="login-field">密码
+            <input id="loginPassword" name="password" type="password" autocomplete="current-password" required>
+        </label>
+        <div class="login-error" id="loginError" role="alert"></div>
+        <button class="btn-login" id="btnLogin" type="submit">登录</button>
+    </form>
+</div>
+
 <!-- ===== 顶部栏 ===== -->
 <header class="app-header">
     <div class="brand">
@@ -930,7 +1025,8 @@
      * 全局状态
      * ===================================================================*/
     const state = {
-        userId: generateUserId(),      // 每次页面加载随机生成，不做持久化
+        loggedIn: false,
+        currentUser: null,
         agentList: [],                 // query_agent_list 缓存
         currentAgent: null,            // 当前会话所属 Agent
         sessionId: null,               // 当前会话 ID
@@ -941,17 +1037,13 @@
     // 对话模式：URL 参数 streamMode=true 时启用流式对话（见 sendByStream），默认普通对话
     const STREAM_MODE = new URLSearchParams(location.search).get('streamMode') === 'true';
 
-    function generateUserId() {
-        return 'user-' + Math.random().toString(36).slice(2, 10) + '-' + Date.now().toString(36);
-    }
-
     /* =====================================================================
      * ChatAPI —— 所有后端接口调用集中于此，便于后续扩展流式接口
      * 接口统一响应格式：{ code, message, data }，code === 0 表示成功
      * ===================================================================*/
     const ChatAPI = {
         async request(url, options) {
-            const res = await fetch(API_BASE + url, options);
+            const res = await fetch(API_BASE + url, {...options, credentials: 'include'});
             if (!res.ok) {
                 throw new Error('HTTP ' + res.status);
             }
@@ -962,32 +1054,42 @@
             return body.data;
         },
 
+        /** 用户名密码登录，Sa-Token 会通过 Cookie 保存会话凭证 */
+        login(username, password) {
+            return this.request('auth/login', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({loginType: 'USERNAME_PASSWORD', username, password}),
+            });
+        },
+
         /** 查询可用 Agent 列表 */
         queryAgentList() {
             return this.request('agent/query_agent_list');
         },
 
         /** 创建会话，返回 sessionId */
-        createSession(userId, agentId) {
-            const params = new URLSearchParams({userId, agentId});
+        createSession(agentId) {
+            const params = new URLSearchParams({agentId});
             return this.request('agent/create_session?' + params.toString());
         },
 
         /** 普通对话（一次性返回完整回复） */
-        chat({userId, agentId, sessionId, userMessage}) {
+        chat({agentId, sessionId, userMessage}) {
             return this.request('agent/chat', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({userId, agentId, sessionId, userMessage}),
+                body: JSON.stringify({agentId, sessionId, userMessage}),
             });
         },
 
         /** 流式对话（SSE，返回 Response，由 sendByStream 消费 body 流） */
-        chatStream({userId, agentId, sessionId, userMessage}) {
+        chatStream({agentId, sessionId, userMessage}) {
             return fetch(API_BASE + 'agent/stream_chat', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json', Accept: 'text/event-stream'},
-                body: JSON.stringify({userId, agentId, sessionId, userMessage}),
+                credentials: 'include',
+                body: JSON.stringify({agentId, sessionId, userMessage}),
             });
         },
     };
@@ -1083,7 +1185,7 @@
     }
 
     function updateComposerState() {
-        const locked = state.sending || !state.sessionId;
+        const locked = !state.loggedIn || state.sending || !state.sessionId;
         inputBox.disabled = locked;
         btnSend.disabled = locked || !inputBox.value.trim();
     }
@@ -1101,7 +1203,6 @@
         setSending(true);
 
         const payload = {
-            userId: state.userId,
             agentId: state.currentAgent.agentId,
             sessionId: state.sessionId,
             userMessage: text,
@@ -1386,7 +1487,7 @@
         btnModalConfirm.disabled = true;
         btnModalConfirm.textContent = '创建中…';
         try {
-            const sessionId = await ChatAPI.createSession(state.userId, agent.agentId);
+            const sessionId = await ChatAPI.createSession(agent.agentId);
             state.currentAgent = agent;
             state.sessionId = sessionId;
             resetChatArea();
@@ -1437,6 +1538,35 @@
     /* =====================================================================
      * 事件绑定与初始化
      * ===================================================================*/
+    const loginBackdrop = $('loginBackdrop');
+    const loginForm = $('loginForm');
+    const loginUsername = $('loginUsername');
+    const loginPassword = $('loginPassword');
+    const loginError = $('loginError');
+    const btnLogin = $('btnLogin');
+
+    async function login(event) {
+        event.preventDefault();
+        loginError.textContent = '';
+        btnLogin.disabled = true;
+        btnLogin.textContent = '登录中…';
+        try {
+            state.currentUser = await ChatAPI.login(loginUsername.value.trim(), loginPassword.value);
+            state.loggedIn = true;
+            loginBackdrop.classList.add('hidden');
+            state.agentList = await ChatAPI.queryAgentList();
+            updateComposerState();
+        } catch (err) {
+            state.loggedIn = false;
+            state.currentUser = null;
+            loginError.textContent = err.message || '登录失败';
+        } finally {
+            btnLogin.disabled = false;
+            btnLogin.textContent = '登录';
+        }
+    }
+
+    loginForm.addEventListener('submit', login);
     $('btnNewSession').addEventListener('click', openNewSessionModal);
     $('btnStart').addEventListener('click', openNewSessionModal);
     $('btnModalCancel').addEventListener('click', closeNewSessionModal);
@@ -1459,14 +1589,6 @@
         autoResizeInput();
         updateComposerState();
     });
-
-    // 页面加载时预取 Agent 列表（供模态框直接使用）
-    ChatAPI.queryAgentList()
-        .then((list) => {
-            state.agentList = list;
-        })
-        .catch(() => { /* 失败不阻塞，打开模态框时会重试 */
-        });
 
     // 流式模式下展示顶部模式徽标
     if (STREAM_MODE) {

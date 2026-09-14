@@ -15,9 +15,6 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class AgentChatRequest {
 
-    @NotBlank(message = "用户ID不能为空")
-    private String userId;
-
     @NotBlank(message = "AgentID不能为空")
     private String agentId;
 

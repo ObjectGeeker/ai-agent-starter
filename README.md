@@ -181,16 +181,28 @@ module:
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
+| POST | `/api/auth/login` | 用户名密码登录，成功后通过 Sa-Token Cookie 保存登录状态 |
 | GET | `/api/agent/query_agent_list` | 查询可用 Agent 列表 |
-| GET | `/api/agent/create_session?userId=&agentId=` | 创建会话，返回 `sessionId` |
+| GET | `/api/agent/create_session?agentId=` | 创建会话，服务端使用当前登录用户 ID，返回 `sessionId` |
 | POST | `/api/agent/chat` | 非流式对话，一次性返回完整回复 |
 | POST | `/api/agent/stream_chat` | 流式对话（SSE），逐帧推送 AI 文本与工具调用事件 |
+
+**登录请求体：**
+
+```json
+{
+  "loginType": "USERNAME_PASSWORD",
+  "username": "admin",
+  "password": "your-password"
+}
+```
+
+登录成功后响应 `data` 仅包含脱敏用户信息，Token 由 Sa-Token 自动写入名为 `satoken` 的 Cookie。Agent 接口均要求携带该 Cookie。
 
 **对话请求体：**
 
 ```json
 {
-  "userId": "user-001",
   "agentId": "agent-single-001",
   "sessionId": "xxx",
   "userMessage": "你好"
@@ -230,7 +242,7 @@ src/main/resources
 | 方向 | 说明 |
 | --- | --- |
 | **接口文档（Knife4j）** | 引入 Knife4j 增强 Swagger，提供可视化、可调试的在线 API 文档。 |
-| **权限管理** | 增加用户认证与鉴权（如 JWT + RBAC），对 Agent 与接口进行访问控制。 |
+| **权限管理** | 在现有用户名密码认证基础上完善 RBAC 与细粒度权限，对 Agent 与接口进行访问控制。 |
 | **接口限流** | 对对话等高频/高成本接口做限流（如令牌桶 / 滑动窗口），保障服务稳定性。 |
 | **多模态** | 支持图片、音频等多模态输入输出，扩展 Agent 的感知与表达能力。 |
 | **文件上传管理** | 提供文件上传、存储与管理能力，支撑多模态与知识库类场景。 |
